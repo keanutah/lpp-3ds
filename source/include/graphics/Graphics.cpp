@@ -50,13 +50,40 @@ u8* TopLFB;
 u8* TopRFB;
 u8* BottomFB;
 
+void putPixel565(u8* dst, u8 x, u8 y, u16 v){
+	dst[(x+(47-y)*48)*3+0]=(v&0x1F)<<3;
+	dst[(x+(47-y)*48)*3+1]=((v>>5)&0x3F)<<2;
+	dst[(x+(47-y)*48)*3+2]=((v>>11)&0x1F)<<3;
+}
+
+void DrawRGB565Pixel(u8* dst, u16 x, u16 y, u16 v){
+	u8 b = (v&0x1F)<<3;
+	u8 g =((v>>5)&0x3F)<<2;
+	u8 r = ((v>>11)&0x1F)<<3;
+	u32 color = b | (g << 8) | (r << 16) | (0xFF << 24);
+	DrawPixel(dst,x,y,color);
+}
+
+void DrawRGB565Screen(u8* dst, u16* pic){
+	int x;
+	int y;
+	u16 width = 400;	
+	if (dst == BottomFB) width = 320;
+	for (y=0; y < 240; y++){
+		for (x=0; x < width; x++){
+			DrawRGB565Pixel(dst, x, y, *pic);
+			pic++;
+		}
+	}
+}
+
 Bitmap* LoadBitmap(char* fname){
 	Handle fileHandle;
 	u64 size;
 	u32 bytesRead;
-	FS_path filePath=FS_makePath(PATH_CHAR, fname);
-	FS_archive script=(FS_archive){ARCH_SDMC, (FS_path){PATH_EMPTY, 1, (u8*)""}};
-	FSUSER_OpenFileDirectly(NULL, &fileHandle, script, filePath, FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+	FS_Path filePath=fsMakePath(PATH_ASCII, fname);
+	FS_Archive script=(FS_Archive){ARCHIVE_SDMC, (FS_Path){PATH_EMPTY, 1, (u8*)""}};
+	FSUSER_OpenFileDirectly( &fileHandle, script, filePath, FS_OPEN_READ, 0x00000000);
 	FSFILE_GetSize(fileHandle, &size);
 	Bitmap* result = (Bitmap*)malloc(sizeof(Bitmap));
 	
@@ -305,9 +332,9 @@ screen->pixels[idx*4+3] = outA * 255.0f;
 }
 
 void RefreshScreen(){
-TopLFB = gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL);
-if (CONFIG_3D_SLIDERSTATE != 0) TopRFB = gfxGetFramebuffer(GFX_TOP, GFX_RIGHT, NULL, NULL);
-BottomFB = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
+	TopLFB = gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL);
+	TopRFB = gfxGetFramebuffer(GFX_TOP, GFX_RIGHT, NULL, NULL);
+	BottomFB = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
 }
 
 void DrawScreenText(int x, int y, char* str, u32 color, int screen,int side){
@@ -1213,9 +1240,9 @@ Bitmap* loadPng(const char* filename)
 	unsigned char* in;
 	unsigned int w, h;
 	
-	FS_path filePath = FS_makePath(PATH_CHAR, filename);
-	FS_archive archive = (FS_archive) { ARCH_SDMC, (FS_path) { PATH_EMPTY, 1, (u8*)"" }};
-	FSUSER_OpenFileDirectly(NULL, &fileHandle, archive, filePath, FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+	FS_Path filePath = fsMakePath(PATH_ASCII, filename);
+	FS_Archive archive = (FS_Archive) { ARCHIVE_SDMC, (FS_Path) { PATH_EMPTY, 1, (u8*)"" }};
+	FSUSER_OpenFileDirectly( &fileHandle, archive, filePath, FS_OPEN_READ, 0x00000000);
 	
 	FSFILE_GetSize(fileHandle, &size);
 	
@@ -1273,9 +1300,9 @@ Bitmap* decodePNGfile(const char* filename)
 	unsigned char* in;
 	unsigned int w, h;
 	
-	FS_path filePath = FS_makePath(PATH_CHAR, filename);
-	FS_archive archive = (FS_archive) { ARCH_SDMC, (FS_path) { PATH_EMPTY, 1, (u8*)"" }};
-	FSUSER_OpenFileDirectly(NULL, &fileHandle, archive, filePath, FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+	FS_Path filePath = fsMakePath(PATH_ASCII, filename);
+	FS_Archive archive = (FS_Archive) { ARCHIVE_SDMC, (FS_Path) { PATH_EMPTY, 1, (u8*)"" }};
+	FSUSER_OpenFileDirectly( &fileHandle, archive, filePath, FS_OPEN_READ, 0x00000000);
 	
 	FSFILE_GetSize(fileHandle, &size);
 	
@@ -1355,9 +1382,9 @@ Bitmap* OpenJPG(const char* filename)
 	cinfo.err = jpeg_std_error(&jerr.pub);
     jerr.pub.error_exit = my_error_exit;
     jpeg_create_decompress(&cinfo);
-	FS_path filePath = FS_makePath(PATH_CHAR, filename);
-	FS_archive archive = (FS_archive) { ARCH_SDMC, (FS_path) { PATH_EMPTY, 1, (u8*)"" }};
-	FSUSER_OpenFileDirectly(NULL, &fileHandle, archive, filePath, FS_OPEN_READ, FS_ATTRIBUTE_NONE);	
+	FS_Path filePath = fsMakePath(PATH_ASCII, filename);
+	FS_Archive archive = (FS_Archive) { ARCHIVE_SDMC, (FS_Path) { PATH_EMPTY, 1, (u8*)"" }};
+	FSUSER_OpenFileDirectly( &fileHandle, archive, filePath, FS_OPEN_READ, 0x00000000);	
 	FSFILE_GetSize(fileHandle, &size);
 	unsigned char* in = (unsigned char*)malloc(size);
 	if(!in) {
@@ -1406,9 +1433,9 @@ Bitmap* decodeJPGfile(const char* filename)
 	cinfo.err = jpeg_std_error(&jerr.pub);
     jerr.pub.error_exit = my_error_exit;
     jpeg_create_decompress(&cinfo);
-	FS_path filePath = FS_makePath(PATH_CHAR, filename);
-	FS_archive archive = (FS_archive) { ARCH_SDMC, (FS_path) { PATH_EMPTY, 1, (u8*)"" }};
-	FSUSER_OpenFileDirectly(NULL, &fileHandle, archive, filePath, FS_OPEN_READ, FS_ATTRIBUTE_NONE);	
+	FS_Path filePath = fsMakePath(PATH_ASCII, filename);
+	FS_Archive archive = (FS_Archive) { ARCHIVE_SDMC, (FS_Path) { PATH_EMPTY, 1, (u8*)"" }};
+	FSUSER_OpenFileDirectly( &fileHandle, archive, filePath, FS_OPEN_READ, 0x00000000);	
 	FSFILE_GetSize(fileHandle, &size);
 	unsigned char* in = (unsigned char*)malloc(size);
 	if(!in) {
@@ -1452,9 +1479,9 @@ Bitmap* decodeBMPfile(const char* fname){
 	Handle fileHandle;
 	u64 size;
 	u32 bytesRead;
-	FS_path filePath=FS_makePath(PATH_CHAR, fname);
-	FS_archive script=(FS_archive){ARCH_SDMC, (FS_path){PATH_EMPTY, 1, (u8*)""}};
-	FSUSER_OpenFileDirectly(NULL, &fileHandle, script, filePath, FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+	FS_Path filePath=fsMakePath(PATH_ASCII, fname);
+	FS_Archive script=(FS_Archive){ARCHIVE_SDMC, (FS_Path){PATH_EMPTY, 1, (u8*)""}};
+	FSUSER_OpenFileDirectly( &fileHandle, script, filePath, FS_OPEN_READ, 0x00000000);
 	FSFILE_GetSize(fileHandle, &size);
 	Bitmap* result = (Bitmap*)malloc(sizeof(Bitmap));
 	
@@ -1513,6 +1540,29 @@ Bitmap* decodeJpg(unsigned char* in,u64 size)
     result->height = height;
     result->pixels = bgr_buffer;
     return result;
+}
+
+void printJpg(unsigned char* in,u64 size, u8* framebuffer)
+{
+    struct jpeg_decompress_struct cinfo;
+	struct my_error_mgr jerr;
+	cinfo.err = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit = my_error_exit;
+    jpeg_create_decompress(&cinfo);
+    jpeg_mem_src(&cinfo, in, size);
+    jpeg_read_header(&cinfo, TRUE);
+    jpeg_start_decompress(&cinfo);
+    int width = cinfo.output_width;
+    int height = cinfo.output_height;
+    int row_bytes = width * cinfo.num_components;
+    u8* bgr_buffer = framebuffer;
+    while (cinfo.output_scanline < cinfo.output_height) {
+        u8* buffer_array[1];
+        buffer_array[0] = bgr_buffer + (cinfo.output_scanline) * row_bytes;
+        jpeg_read_scanlines(&cinfo, buffer_array, 1);
+    }
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
 }
 
 void saveJpg(char *filename, u32 *pixels, u32 width, u32 height){

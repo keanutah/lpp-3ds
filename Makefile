@@ -30,7 +30,7 @@ include $(DEVKITARM)/3ds_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source/include/lua	source source/include source/include/Graphics \
+SOURCES		:=	source/include/lua	source source/include source/include/graphics \
 				source/include/ftp source/include/sf2d source/include/ogg \
 				source/include/lodepng/	source/include/unrar/	source/include/libjpeg \
 				source/include/ttf source/include/khax
@@ -43,15 +43,15 @@ APP_DESCRIPTION	:=	Lua Interpreter for 3DS
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard
+ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=softfp
 
 CFLAGS	:=	-g -O2 -mword-relocations \
 			-fomit-frame-pointer -ffast-math \
 			$(ARCH)
 
-CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -DLODEPNG_NO_COMPILE_ENCODER -DLUA_C89_NUMBERS
+CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -DLODEPNG_NO_COMPILE_ENCODER -DLUA_C89_NUMBERS -DLIBCTRU_NO_DEPRECATION
 
-CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
+CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11 -Wno-write-strings
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)

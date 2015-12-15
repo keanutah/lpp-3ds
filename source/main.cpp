@@ -35,9 +35,10 @@
 #include <string.h>
 #include <3ds.h>
 #include "include/luaplayer.h"
-#include "include/Graphics/Graphics.h"
+#include "include/graphics/Graphics.h"
 #include "include/ftp/ftp.h"
 #include "include/khax/khax.h"
+#include "include/luaAudio.h"
 
 const char *errMsg;
 unsigned char *buffer;
@@ -48,6 +49,8 @@ bool ftp_state;
 bool isTopLCDOn;
 bool isBottomLCDOn;
 bool isNinjhax2;
+bool csndAccess;
+extern bool audioChannels[32];
 
 int main(int argc, char **argv)
 {
@@ -55,13 +58,13 @@ int main(int argc, char **argv)
 	aptInit();
 	gfxInitDefault();
 	acInit();
-	initCfgu();
+	cfguInit();
 	httpcInit();
-	ptmInit();
+	ptmuInit();
 	hidInit();
 	irrstInit();
 	aptOpenSession();
-	Result ret=APT_SetAppCpuTimeLimit(NULL, 30);
+	Result ret=APT_SetAppCpuTimeLimit(30);
 	aptCloseSession();
 	fsInit();
 	ftp_state = false;
@@ -73,14 +76,27 @@ int main(int argc, char **argv)
 	int restore;
 	
 	// Check user build and enables kernel access
-		if (nsInit()==0){
-			CIA_MODE = true;
-			nsExit();
-		}else CIA_MODE = false;
-		isNinjhax2 = false;
-		if (!hbInit()) khaxInit();
-		else isNinjhax2 = true;
+	if (nsInit()==0){
+		CIA_MODE = true;
+		nsExit();
+	}else CIA_MODE = false;
+	isNinjhax2 = false;
+	if (!hbInit()) khaxInit();
+	else isNinjhax2 = true;
 	
+	// Select Audio System (csnd:SND preferred)
+	if (csndInit() == 0){
+		csndAccess = true;
+		csndExit();
+	}else csndAccess = false;
+	
+	// Init Audio-Device
+	int i = 0;
+	for (i=0;i < 32; i++){
+		audioChannels[i] = false;
+		if (!isNinjhax2 && (i < 0x08))  audioChannels[i] = true;
+		else if (csndAccess && (i < 0x08)) audioChannels[i] = true;
+	}
 	
 	// Set main script
 	char path[256];
@@ -108,23 +124,25 @@ int main(int argc, char **argv)
 		char error[2048];		
 		
 		// Load main script
-		FS_path filePath=FS_makePath(PATH_CHAR, path);
-		FS_archive script=(FS_archive){ARCH_SDMC, (FS_path){PATH_EMPTY, 1, (u8*)""}};
-		FSUSER_OpenFileDirectly(NULL, &fileHandle, script, filePath, FS_OPEN_READ, FS_ATTRIBUTE_NONE);
-		FSFILE_GetSize(fileHandle, &size);
-		buffer = (unsigned char*)(malloc((size+1) * sizeof (char)));
-		FSFILE_Read(fileHandle, &bytesRead, 0x0, buffer, size);
-		buffer[size]=0;
-		FSFILE_Close(fileHandle);
-		svcCloseHandle(fileHandle);
-		errMsg = runScript((const char*)buffer, true);
-		free(buffer);
+		FS_Path filePath=fsMakePath(PATH_ASCII, path);
+		FS_Archive script=(FS_Archive){ARCHIVE_SDMC, (FS_Path){PATH_EMPTY, 1, (u8*)""}};
+		Result ret = FSUSER_OpenFileDirectly(&fileHandle, script, filePath, FS_OPEN_READ, 0x00000000);
+		if (!ret){
+			FSFILE_GetSize(fileHandle, &size);
+			buffer = (unsigned char*)(malloc((size+1) * sizeof (char)));
+			FSFILE_Read(fileHandle, &bytesRead, 0x0, buffer, size);
+			buffer[size]=0;
+			FSFILE_Close(fileHandle);
+			svcCloseHandle(fileHandle);
+			errMsg = runScript((const char*)buffer, true);
+			free(buffer);
+		}else errMsg = "index.lua file not found.";
 		
 		// Force LCDs power on
 		if ((!isTopLCDOn) || (!isBottomLCDOn)){
 			gspLcdInit();
-			if (!isTopLCDOn) GSPLCD_PowerOnBacklight(GSPLCD_TOP);
-			if (!isBottomLCDOn) GSPLCD_PowerOnBacklight(GSPLCD_BOTTOM);
+			if (!isTopLCDOn) GSPLCD_PowerOnBacklight(GSPLCD_SCREEN_TOP);
+			if (!isBottomLCDOn) GSPLCD_PowerOnBacklight(GSPLCD_SCREEN_BOTTOM);
 			gspLcdExit();
 			isTopLCDOn = true;
 			isBottomLCDOn = true;
@@ -166,7 +184,7 @@ int main(int argc, char **argv)
 			}else if(hidKeysDown() & KEY_Y){
 				if (!ftp_state){
 					u32 wifiStatus;
-					if ((u32)ACU_GetWifiStatus(NULL, &wifiStatus) !=  0xE0A09D2E){
+					if ((u32)ACU_GetWifiStatus(&wifiStatus) !=  0xE0A09D2E){
 						if (wifiStatus != 0){
 							ftp_init();
 							connfd = -1;
@@ -181,7 +199,8 @@ int main(int argc, char **argv)
 		}
 		if (ftp_state) ftp_exit();
 		if (isCSND){
-			csndExit();
+			if (csndAccess) csndExit();
+			else ndspExit();
 			isCSND = false;
 		}
 		if (restore==2){
@@ -192,11 +211,11 @@ int main(int argc, char **argv)
 	fsExit();
 	irrstExit();
 	hidExit();
-	ptmExit();
+	ptmuExit();
 	hbExit();
 	acExit();
 	httpcExit();
-	exitCfgu();
+	cfguExit();
 	gfxExit();
 	aptExit();
 	srvExit();
